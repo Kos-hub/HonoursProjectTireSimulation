@@ -9,6 +9,7 @@
 #include <string>
 #include <fstream>
 #include <vector>
+
 using namespace physx;
 using namespace snippetvehicle;
 
@@ -16,6 +17,7 @@ std::string allWheels;
 std::vector<std::string> csvLinesLong;
 std::vector<std::string> csvLinesLat;
 std::vector<std::string> csvLinesAlg;
+int numStepCount = 0;
 
 PxDefaultAllocator		gAllocator;
 PxDefaultErrorCallback	gErrorCallback;
@@ -56,17 +58,17 @@ enum DriveMode
 DriveMode gDriveModeOrder[] =
 {
 	eDRIVE_MODE_BRAKE,
-	eDRIVE_MODE_ACCEL_FORWARDS,
-	eDRIVE_MODE_BRAKE,
-	eDRIVE_MODE_ACCEL_REVERSE,
-	eDRIVE_MODE_BRAKE,
+	//eDRIVE_MODE_ACCEL_FORWARDS,
+	//eDRIVE_MODE_BRAKE,
+	//eDRIVE_MODE_ACCEL_REVERSE,
+	//eDRIVE_MODE_BRAKE,
 	eDRIVE_MODE_HARD_TURN_LEFT,
 	eDRIVE_MODE_BRAKE,
-	eDRIVE_MODE_HARD_TURN_RIGHT,
-	eDRIVE_MODE_ACCEL_FORWARDS,
-	eDRIVE_MODE_HANDBRAKE_TURN_LEFT,
-	eDRIVE_MODE_ACCEL_FORWARDS,
-	eDRIVE_MODE_HANDBRAKE_TURN_RIGHT,
+	//eDRIVE_MODE_HARD_TURN_RIGHT,
+	//eDRIVE_MODE_ACCEL_FORWARDS,
+	//eDRIVE_MODE_HANDBRAKE_TURN_LEFT,
+	//eDRIVE_MODE_ACCEL_FORWARDS,
+	//eDRIVE_MODE_HANDBRAKE_TURN_RIGHT,
 	eDRIVE_MODE_NONE
 };
 
@@ -177,6 +179,7 @@ const float c14 = 0.0f;
 const float c15 = 0.0f;
 const float c16 = 0.0f;
 const float c17 = 0.0f;
+
 //const float b0 = 1.50018802672136;
 //const float b1 =  0.0f;
 //const float b2 = 1100.f;
@@ -262,6 +265,7 @@ void TireForceDefault
 	const PxF32 gravity, const PxF32 recipGravity,
 	PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
 {
+	
 	PX_UNUSED(wheelOmega);
 	PX_UNUSED(recipWheelRadius);
 
@@ -280,9 +284,10 @@ void TireForceDefault
 	const PxF32 longSlip = PxAbs(longSlipUnClamped) >= gMinimumSlipThreshold ? longSlipUnClamped : 0.0f;
 	const PxF32 camber = PxAbs(camberUnclamped) >= gMinimumSlipThreshold ? camberUnclamped : 0.0f;
 
+
 	csvLinesLong[numWheel].append(std::to_string(longSlip) + ",");
-	csvLinesLat[numWheel].append(std::to_string(latSlip) + ",");
-	csvLinesAlg[numWheel].append(std::to_string(latSlip) + ",");
+	csvLinesLat[numWheel].append(std::to_string(latSlip * (180.f / PxPi)) + ",");
+	csvLinesAlg[numWheel].append(std::to_string(latSlip * (180.f / PxPi)) + ",");
 
 	//If long slip/lat slip/camber are all zero than there will be zero tire force.
 	if ((0 == latSlip) && (0 == longSlip) && (0 == camber))
@@ -327,16 +332,20 @@ void TireForceDefault
 	tireLatForceMag = fx;
 	tireAlignMoment = fMy;
 
-
 	csvLinesLong[numWheel].append(std::to_string(tireLongForceMag) + "\n");
 	csvLinesLat[numWheel].append(std::to_string(tireLatForceMag) + "\n");
 	csvLinesAlg[numWheel].append(std::to_string(tireAlignMoment) + "\n");
 
 	numWheel++;
+	numStepCount++;
 	if (numWheel > 3)
 		numWheel = 0;
 
-	std::cout << numWheel << std::endl;
+	//if (numWheel > 4)
+	//	std::cout << "STOP" << std::endl;
+
+
+	
 }
 
 void tireModelMagicFormula(const void* shaderData,
@@ -348,14 +357,18 @@ void tireModelMagicFormula(const void* shaderData,
 	PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
 {
 
+	if ((0 == latSlip) && (0 == longSlip) && (0 == camber))
+	{
+		return;
+	}
 	// CLAMPING SLIPS
-	PxClamp(longSlip, -1.f, 1.f);
-	PxClamp(latSlip, (float)((-PxPi / 2.f) + 0.001), (float)((-PxPi / 2.f) - 0.001));
+	/*float clampLongSlip = PxClamp(longSlip, -1.f, 1.f);
+	float clampLatSlip = PxClamp(latSlip, (float)((-PxPi / 2.f) + 0.001), (float)((-PxPi / 2.f) - 0.001));*/
 
 	//std::cout << "Wheel " << numWheel << " Long Slip: " << longSlip << std::endl;
 	//std::cout << "Wheel " << numWheel << " Lat Slip: " << latSlip << std::endl;
-
 	csvLinesLong[numWheel].append(std::to_string(longSlip) + ",");
+
 
 
 	//printf("Calculating Tire\n");
@@ -415,7 +428,7 @@ void tireModelMagicFormula(const void* shaderData,
 	x1 = (latSlipDeg + H);
 	E = (c7 * Fz * Fz + c8 * Fz + c9) * (1 - c10 * std::abs(camberDeg));
 
-	float Mz = tireFriction * D * std::sin(C * std::atan(B * x1 - E * (B * x1 - std::atan(B * x1)))) + H;
+	float Mz = tireFriction * D * std::sin(C * std::atan(B * x1 - E * (B * x1 - std::atan(B * x1)))) + V;
 
 	//float deflection = Fy / 261065.0;
 
@@ -430,11 +443,15 @@ void tireModelMagicFormula(const void* shaderData,
 	tireLatForceMag = Fy;
 	tireAlignMoment = Mz;
 
+
 	csvLinesLong[numWheel].append(std::to_string(tireLongForceMag) + "\n");
 	csvLinesLat[numWheel].append(std::to_string(tireLatForceMag) + "\n");
 	csvLinesAlg[numWheel].append(std::to_string(tireAlignMoment) + "\n");
 
+	
 	numWheel++;
+	numStepCount++;
+
 	if (numWheel > 3)
 		numWheel = 0;
 
@@ -620,49 +637,6 @@ void initPhysics()
 	//gVehicleNoDrive->mWheelsDynData.setTireForceShaderFunction(&tireModelMagicFormula);
 	gVehicleNoDrive->mWheelsDynData.setTireForceShaderFunction(&TireForceDefault);
 
-
-	PxVehicleTireData customTireData;
-
-	// Lateral stiffness coefficients
-	customTireData.mLatStiffX = 10.0f; // Lateral stiffness along X-axis
-	customTireData.mLatStiffY = 10.0f; // Lateral stiffness along Y-axis
-
-	// Longitudinal stiffness coefficient per unit gravity
-	customTireData.mLongitudinalStiffnessPerUnitGravity = 10.0f;
-
-	customTireData.mType = 0;
-
-	customTireData.mFrictionVsSlipGraph[0][0] = 0.0f; // Always Zero
-	customTireData.mFrictionVsSlipGraph[0][1] = 0.3f; // is the friction available at zero longitudinal slip.
-	customTireData.mFrictionVsSlipGraph[1][0] = 0.5f; // is the value of longitudinal slip with maximum friction.
-	customTireData.mFrictionVsSlipGraph[1][1] = 0.8f; // is the maximum friction.
-	customTireData.mFrictionVsSlipGraph[2][0] = 1.0f; // is the end point of the graph.
-	customTireData.mFrictionVsSlipGraph[2][1] = 0.7f; // is the end point of the graph
-
-	customTireData.mCamberStiffnessPerUnitGravity = 10.0f;
-
-	for (int i = 0; i < 4; i++)
-		gVehicleNoDrive->mWheelsDynData.setTireForceShaderData(i, &customTireData);
-
-
-
-	//myTelemetryData = PxVehicleTelemetryData::allocate(4);
-	//
-	//const PxF32 graphSizeX = 0.25f;
-	//const PxF32 graphSizeY = 0.25f;
-	//const PxF32 engineGraphPosX = 0.5f;
-	//const PxF32 engineGraphPosY = 0.5f;
-	//const PxF32 wheelGraphPosX[4] = { 0.75f,0.25f,0.75f,0.25f };
-	//const PxF32 wheelGraphPosY[4] = { 0.75f,0.75f,0.25f,0.25f };
-	//const PxVec3 backgroundColor(255, 255, 255);
-	//const PxVec3 lineColorHigh(255, 0, 0);
-	//const PxVec3 lineColorLow(0, 0, 0);
-	//myTelemetryData->setup
-	//(graphSizeX, graphSizeY,
-	//	engineGraphPosX, engineGraphPosY,
-	//	wheelGraphPosX, wheelGraphPosY,
-	//	backgroundColor, lineColorHigh, lineColorLow);
-
 	for (int i = 0; i < 4; i++)
 	{
 		std::string csvLine;
@@ -670,6 +644,7 @@ void initPhysics()
 		csvLinesLat.push_back(csvLine);
 		csvLinesAlg.push_back(csvLine);
 	}
+
 
 	//Set the vehicle to rest in first gear.
 	//Set the vehicle to use auto-gears.
@@ -774,13 +749,15 @@ void stepPhysics()
 	//	
 	//}
 
-
-
+	
+	
+	
 	//Scene update
 	gScene->simulate(timestep);
 	gScene->fetchResults(true);
 
-	printf("Finishing step\n\n");
+	numStepCount = 0;
+	//printf("Finishing step\n\n");
 }
 
 void cleanupPhysics()
@@ -885,16 +862,3 @@ int snippetMain(int, const char* const*)
 
 	return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
