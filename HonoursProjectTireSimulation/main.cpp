@@ -4,12 +4,17 @@
 #include "VehicleFilterShader.h"
 #include "VehicleCreate.h"
 #include "VehicleTireFriction.h"
+#include "MagicFormulaTireModel.h"
+#include "DefaultTireModel.h"
 #include <stdio.h>
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <vector>
+#include <functional>
 
+// TODO: Instead of writing to a string each time the wheel function is called, what I can simply do is save at the end of the step.
+// Therefore, I'd have to store long slip, lat slip and all the forces in temp values that will then be passed to a csv string.
 using namespace physx;
 using namespace snippetvehicle;
 
@@ -42,6 +47,8 @@ PxVehicleDrivableSurfaceToTireFrictionPairs* gFrictionPairs = NULL;
 PxRigidStatic* gGroundPlane = NULL;
 PxVehicleNoDrive* gVehicleNoDrive = NULL;
 
+shared_ptr<MagicFormulaTireModel> magicFormulaTireModel;
+shared_ptr<DefaultTireModel> defaultTireModel;
 enum DriveMode
 {
 	eDRIVE_MODE_ACCEL_FORWARDS = 0,
@@ -58,12 +65,12 @@ enum DriveMode
 DriveMode gDriveModeOrder[] =
 {
 	eDRIVE_MODE_BRAKE,
-	//eDRIVE_MODE_ACCEL_FORWARDS,
-	//eDRIVE_MODE_BRAKE,
+	eDRIVE_MODE_ACCEL_FORWARDS,
+	eDRIVE_MODE_BRAKE,
 	//eDRIVE_MODE_ACCEL_REVERSE,
 	//eDRIVE_MODE_BRAKE,
-	eDRIVE_MODE_HARD_TURN_LEFT,
-	eDRIVE_MODE_BRAKE,
+	//eDRIVE_MODE_HARD_TURN_LEFT,
+	//eDRIVE_MODE_BRAKE,
 	//eDRIVE_MODE_HARD_TURN_RIGHT,
 	//eDRIVE_MODE_ACCEL_FORWARDS,
 	//eDRIVE_MODE_HANDBRAKE_TURN_LEFT,
@@ -235,227 +242,228 @@ const float c17 = 0.0f;
 //const float S_VY2 = 0.0f;  // Vertical shift factor squared
 
 int numWheel = 0;
-
-float gMinimumSlipThreshold = 1e-5f;
-
-#define ONE_TWENTYSEVENTH 0.037037f
-#define ONE_THIRD 0.33333f
-
-PX_FORCE_INLINE PxF32 smoothingFunction1(const PxF32 K)
-{
-	//Equation 20 in CarSimEd manual Appendix F.
-	//Looks a bit like a curve of sqrt(x) for 0<x<1 but reaching 1.0 on y-axis at K=3. 
-	PX_ASSERT(K >= 0.0f);
-	return PxMin(1.0f, K - ONE_THIRD * K * K + ONE_TWENTYSEVENTH * K * K * K);
-}
-PX_FORCE_INLINE PxF32 smoothingFunction2(const PxF32 K)
-{
-	//Equation 21 in CarSimEd manual Appendix F.
-	//Rises to a peak at K=0.75 and falls back to zero by K=3
-	PX_ASSERT(K >= 0.0f);
-	return (K - K * K + ONE_THIRD * K * K * K - ONE_TWENTYSEVENTH * K * K * K * K);
-}
-
-void TireForceDefault
-(const void* tireShaderData,
-	const PxF32 tireFriction,
-	const PxF32 longSlipUnClamped, const PxF32 latSlipUnClamped, const PxF32 camberUnclamped,
-	const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius,
-	const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 tireLoad,
-	const PxF32 gravity, const PxF32 recipGravity,
-	PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
-{
-	
-	PX_UNUSED(wheelOmega);
-	PX_UNUSED(recipWheelRadius);
-
-	const PxVehicleTireData& tireData = *reinterpret_cast<const PxVehicleTireData*>(tireShaderData);
-
-	PX_ASSERT(tireFriction > 0);
-	PX_ASSERT(tireLoad > 0);
-
-	wheelTorque = 0.0f;
-	tireLongForceMag = 0.0f;
-	tireLatForceMag = 0.0f;
-	tireAlignMoment = 0.0f;
-
-	//Clamp the slips to a minimum value.
-	const PxF32 latSlip = PxAbs(latSlipUnClamped) >= gMinimumSlipThreshold ? latSlipUnClamped : 0.0f;
-	const PxF32 longSlip = PxAbs(longSlipUnClamped) >= gMinimumSlipThreshold ? longSlipUnClamped : 0.0f;
-	const PxF32 camber = PxAbs(camberUnclamped) >= gMinimumSlipThreshold ? camberUnclamped : 0.0f;
-
-
-	csvLinesLong[numWheel].append(std::to_string(longSlip) + ",");
-	csvLinesLat[numWheel].append(std::to_string(latSlip * (180.f / PxPi)) + ",");
-	csvLinesAlg[numWheel].append(std::to_string(latSlip * (180.f / PxPi)) + ",");
-
-	//If long slip/lat slip/camber are all zero than there will be zero tire force.
-	if ((0 == latSlip) && (0 == longSlip) && (0 == camber))
-	{
-		return;
-	}
-
-	//Compute the lateral stiffness
-	const PxF32 latStiff = restTireLoad * tireData.mLatStiffY * smoothingFunction1(normalisedTireLoad * 3.0f / tireData.mLatStiffX);
-
-	//Get the longitudinal stiffness
-	const PxF32 longStiff = tireData.mLongitudinalStiffnessPerUnitGravity * gravity;
-	const PxF32 recipLongStiff = tireData.getRecipLongitudinalStiffnessPerUnitGravity() * recipGravity;
-
-	//Get the camber stiffness.
-	const PxF32 camberStiff = tireData.mCamberStiffnessPerUnitGravity * gravity;
-
-	//Carry on and compute the forces.
-	const PxF32 TEff = PxTan(latSlip - camber * camberStiff / latStiff);
-	const PxF32 K = PxSqrt(latStiff * TEff * latStiff * TEff + longStiff * longSlip * longStiff * longSlip) / (tireFriction * tireLoad);
-	//const PxF32 KAbs=PxAbs(K);
-	PxF32 FBar = smoothingFunction1(K);//K - ONE_THIRD*PxAbs(K)*K + ONE_TWENTYSEVENTH*K*K*K;
-	PxF32 MBar = smoothingFunction2(K); //K - KAbs*K + ONE_THIRD*K*K*K - ONE_TWENTYSEVENTH*KAbs*K*K*K;
-	//Mbar = PxMin(Mbar, 1.0f);
-	PxF32 nu = 1;
-	if (K <= 2.0f * PxPi)
-	{
-		const PxF32 latOverlLong = latStiff * recipLongStiff;
-		nu = 0.5f * (1.0f + latOverlLong - (1.0f - latOverlLong) * PxCos(K * 0.5f));
-	}
-	const PxF32 FZero = tireFriction * tireLoad / (PxSqrt(longSlip * longSlip + nu * TEff * nu * TEff));
-	const PxF32 fz = longSlip * FBar * FZero;
-	const PxF32 fx = -nu * TEff * FBar * FZero;
-	//TODO: pneumatic trail.
-	const PxF32 pneumaticTrail = 1.0f;
-	const PxF32	fMy = nu * pneumaticTrail * TEff * MBar * FZero;
-
-
-	//We can add the torque to the wheel.
-	wheelTorque = -fz * wheelRadius;
-	tireLongForceMag = fz;
-	tireLatForceMag = fx;
-	tireAlignMoment = fMy;
-
-	csvLinesLong[numWheel].append(std::to_string(tireLongForceMag) + "\n");
-	csvLinesLat[numWheel].append(std::to_string(tireLatForceMag) + "\n");
-	csvLinesAlg[numWheel].append(std::to_string(tireAlignMoment) + "\n");
-
-	numWheel++;
-	numStepCount++;
-	if (numWheel > 3)
-		numWheel = 0;
-
-	//if (numWheel > 4)
-	//	std::cout << "STOP" << std::endl;
-
-
-	
-}
-
-void tireModelMagicFormula(const void* shaderData,
-	const PxF32 tireFriction,
-	const PxF32 longSlip, const PxF32 latSlip, const PxF32 camber,
-	const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius,
-	const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 tireLoad,
-	const PxF32 gravity, const PxF32 recipGravity,
-	PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
-{
-
-	if ((0 == latSlip) && (0 == longSlip) && (0 == camber))
-	{
-		return;
-	}
-	// CLAMPING SLIPS
-	/*float clampLongSlip = PxClamp(longSlip, -1.f, 1.f);
-	float clampLatSlip = PxClamp(latSlip, (float)((-PxPi / 2.f) + 0.001), (float)((-PxPi / 2.f) - 0.001));*/
-
-	//std::cout << "Wheel " << numWheel << " Long Slip: " << longSlip << std::endl;
-	//std::cout << "Wheel " << numWheel << " Lat Slip: " << latSlip << std::endl;
-	csvLinesLong[numWheel].append(std::to_string(longSlip) + ",");
-
-
-
-	//printf("Calculating Tire\n");
-
-
-	// ADJUSTING VALUES
-	float Fz = tireLoad / 1000.f;
-	float longSlipP = longSlip * 100.f;
-	float camberDeg = 90.f - std::acos(camber) * (180.f / PxPi);
-	//float camberDeg = camber * (180.f / PxPi);
-	float latSlipDeg = -latSlip * (180.f / PxPi);
-
-	// Getting the lateral slip in degrees, not in radians
-	csvLinesLat[numWheel].append(std::to_string(latSlipDeg) + ",");
-	csvLinesAlg[numWheel].append(std::to_string(latSlipDeg) + ",");
-
-	// LONG FORCE CALC
-	float C = b0;
-
-
-
-	float D = (b1 * Fz * Fz + b2 * Fz);
-
-
-	float BCD = (b3 * Fz * Fz + b4 * Fz) * std::exp(-b5 * Fz);
-	float B = BCD / (C * D);
-
-	float H = b9 * Fz + b10;
-	float V = 0.0f;
-	float x1 = longSlipP + H;
-	float E = (b6 * Fz * Fz + b7 * Fz + b8);
-
-	float Fx = tireFriction * (D * std::sin(C * std::atan(B * x1 - E * (B * x1 - std::atan(B * x1))))) + V;
-
-
-	// LAT FORCE CALC
-	C = a0;
-	D = (a1 * Fz * Fz + a2 * Fz);
-	BCD = a3 * std::sin(std::atan(Fz / a4) * 2.0) * (1.0 - a5 * std::abs(camberDeg));
-	B = BCD / (C * D);
-	H = a9 * Fz + a10 + a8 * camberDeg;
-	V = a11 * Fz * camberDeg + a12 * Fz + a13;
-	x1 = latSlipDeg + H;
-	E = a6 * Fz + a7;
-
-	PxClamp(x1, (float)-89.5, (float)89.5);
-	float Fy = tireFriction * D * std::sin(C * std::atan(B * x1 - E * (B * x1 - std::atan(B * x1)))) + V;
-
-
-	// ALIGN MOMENT CALCULATION
-	C = c0;
-	D = c1 * Fz * Fz + c2 * Fz;
-	BCD = (c3 * Fz * Fz + c4 * Fz) * (1 - c6 * std::abs(camberDeg)) * std::exp(-c5 * Fz);
-	B = BCD / (C * D);
-	H = c11 * camberDeg + c12 * Fz + c13;
-	V = (c14 * Fz * Fz + c15 * Fz) * camberDeg + c16 * Fz + c17;
-	x1 = (latSlipDeg + H);
-	E = (c7 * Fz * Fz + c8 * Fz + c9) * (1 - c10 * std::abs(camberDeg));
-
-	float Mz = tireFriction * D * std::sin(C * std::atan(B * x1 - E * (B * x1 - std::atan(B * x1)))) + V;
-
-	//float deflection = Fy / 261065.0;
-
-	//float Mx = -(Fz * 1000) * deflection;
-	//Mz = Mz + Fx * deflection;
-
-	//float My = 0.01 * Fz * wheelRadius;
-
-	// Set the output variables
-	wheelTorque = 0.f;        // Magic Formula doesn't directly compute wheel torque
-	tireLongForceMag = Fx;
-	tireLatForceMag = Fy;
-	tireAlignMoment = Mz;
-
-
-	csvLinesLong[numWheel].append(std::to_string(tireLongForceMag) + "\n");
-	csvLinesLat[numWheel].append(std::to_string(tireLatForceMag) + "\n");
-	csvLinesAlg[numWheel].append(std::to_string(tireAlignMoment) + "\n");
-
-	
-	numWheel++;
-	numStepCount++;
-
-	if (numWheel > 3)
-		numWheel = 0;
-
-}
+//
+//float gMinimumSlipThreshold = 1e-5f;
+//
+//#define ONE_TWENTYSEVENTH 0.037037f
+//#define ONE_THIRD 0.33333f
+//
+//PX_FORCE_INLINE PxF32 smoothingFunction1(const PxF32 K)
+//{
+//	//Equation 20 in CarSimEd manual Appendix F.
+//	//Looks a bit like a curve of sqrt(x) for 0<x<1 but reaching 1.0 on y-axis at K=3. 
+//	PX_ASSERT(K >= 0.0f);
+//	return PxMin(1.0f, K - ONE_THIRD * K * K + ONE_TWENTYSEVENTH * K * K * K);
+//}
+//PX_FORCE_INLINE PxF32 smoothingFunction2(const PxF32 K)
+//{
+//	//Equation 21 in CarSimEd manual Appendix F.
+//	//Rises to a peak at K=0.75 and falls back to zero by K=3
+//	PX_ASSERT(K >= 0.0f);
+//	return (K - K * K + ONE_THIRD * K * K * K - ONE_TWENTYSEVENTH * K * K * K * K);
+//}
+//
+//void TireForceDefault
+//(const void* tireShaderData,
+//	const PxF32 tireFriction,
+//	const PxF32 longSlipUnClamped, const PxF32 latSlipUnClamped, const PxF32 camberUnclamped,
+//	const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius,
+//	const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 tireLoad,
+//	const PxF32 gravity, const PxF32 recipGravity,
+//	PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
+//{
+//	
+//	PX_UNUSED(wheelOmega);
+//	PX_UNUSED(recipWheelRadius);
+//
+//	const PxVehicleTireData& tireData = *reinterpret_cast<const PxVehicleTireData*>(tireShaderData);
+//
+//	PX_ASSERT(tireFriction > 0);
+//	PX_ASSERT(tireLoad > 0);
+//
+//	wheelTorque = 0.0f;
+//	tireLongForceMag = 0.0f;
+//	tireLatForceMag = 0.0f;
+//	tireAlignMoment = 0.0f;
+//
+//	//Clamp the slips to a minimum value.
+//	const PxF32 latSlip = PxAbs(latSlipUnClamped) >= gMinimumSlipThreshold ? latSlipUnClamped : 0.0f;
+//	const PxF32 longSlip = PxAbs(longSlipUnClamped) >= gMinimumSlipThreshold ? longSlipUnClamped : 0.0f;
+//	const PxF32 camber = PxAbs(camberUnclamped) >= gMinimumSlipThreshold ? camberUnclamped : 0.0f;
+//
+//
+//	csvLinesLong[numWheel].append(std::to_string(longSlip) + ",");
+//	csvLinesLat[numWheel].append(std::to_string(latSlip * (180.f / PxPi)) + ",");
+//	csvLinesAlg[numWheel].append(std::to_string(latSlip * (180.f / PxPi)) + ",");
+//
+//	//If long slip/lat slip/camber are all zero than there will be zero tire force.
+//	if ((0 == latSlip) && (0 == longSlip) && (0 == camber))
+//	{
+//		return;
+//	}
+//
+//	//Compute the lateral stiffness
+//	const PxF32 latStiff = restTireLoad * tireData.mLatStiffY * smoothingFunction1(normalisedTireLoad * 3.0f / tireData.mLatStiffX);
+//
+//	//Get the longitudinal stiffness
+//	const PxF32 longStiff = tireData.mLongitudinalStiffnessPerUnitGravity * gravity;
+//	const PxF32 recipLongStiff = tireData.getRecipLongitudinalStiffnessPerUnitGravity() * recipGravity;
+//
+//	//Get the camber stiffness.
+//	const PxF32 camberStiff = tireData.mCamberStiffnessPerUnitGravity * gravity;
+//
+//	//Carry on and compute the forces.
+//	const PxF32 TEff = PxTan(latSlip - camber * camberStiff / latStiff);
+//	const PxF32 K = PxSqrt(latStiff * TEff * latStiff * TEff + longStiff * longSlip * longStiff * longSlip) / (tireFriction * tireLoad);
+//	//const PxF32 KAbs=PxAbs(K);
+//	PxF32 FBar = smoothingFunction1(K);//K - ONE_THIRD*PxAbs(K)*K + ONE_TWENTYSEVENTH*K*K*K;
+//	PxF32 MBar = smoothingFunction2(K); //K - KAbs*K + ONE_THIRD*K*K*K - ONE_TWENTYSEVENTH*KAbs*K*K*K;
+//	//Mbar = PxMin(Mbar, 1.0f);
+//	PxF32 nu = 1;
+//	if (K <= 2.0f * PxPi)
+//	{
+//		const PxF32 latOverlLong = latStiff * recipLongStiff;
+//		nu = 0.5f * (1.0f + latOverlLong - (1.0f - latOverlLong) * PxCos(K * 0.5f));
+//	}
+//	const PxF32 FZero = tireFriction * tireLoad / (PxSqrt(longSlip * longSlip + nu * TEff * nu * TEff));
+//	const PxF32 fz = longSlip * FBar * FZero;
+//	const PxF32 fx = -nu * TEff * FBar * FZero;
+//	//TODO: pneumatic trail.
+//	const PxF32 pneumaticTrail = 1.0f;
+//	const PxF32	fMy = nu * pneumaticTrail * TEff * MBar * FZero;
+//
+//
+//	//We can add the torque to the wheel.
+//	wheelTorque = -fz * wheelRadius;
+//	tireLongForceMag = fz;
+//	tireLatForceMag = fx;
+//	tireAlignMoment = fMy;
+//
+//	csvLinesLong[numWheel].append(std::to_string(tireLongForceMag) + "\n");
+//	csvLinesLat[numWheel].append(std::to_string(tireLatForceMag) + "\n");
+//	csvLinesAlg[numWheel].append(std::to_string(tireAlignMoment) + "\n");
+//
+//	std::cout << numWheel << std::endl;
+//	numWheel++;
+//	numStepCount++;
+//	if (numWheel > 3)
+//		numWheel = 0;
+//
+//	//if (numWheel > 4)
+//	//	std::cout << "STOP" << std::endl;
+//
+//
+//	
+//}
+//
+//void tireModelMagicFormula(const void* shaderData,
+//	const PxF32 tireFriction,
+//	const PxF32 longSlip, const PxF32 latSlip, const PxF32 camber,
+//	const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius,
+//	const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 tireLoad,
+//	const PxF32 gravity, const PxF32 recipGravity,
+//	PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
+//{
+//
+//	if ((0 == latSlip) && (0 == longSlip) && (0 == camber))
+//	{
+//		return;
+//	}
+//	// CLAMPING SLIPS
+//	/*float clampLongSlip = PxClamp(longSlip, -1.f, 1.f);
+//	float clampLatSlip = PxClamp(latSlip, (float)((-PxPi / 2.f) + 0.001), (float)((-PxPi / 2.f) - 0.001));*/
+//
+//	//std::cout << "Wheel " << numWheel << " Long Slip: " << longSlip << std::endl;
+//	//std::cout << "Wheel " << numWheel << " Lat Slip: " << latSlip << std::endl;
+//	csvLinesLong[numWheel].append(std::to_string(longSlip) + ",");
+//
+//
+//
+//	//printf("Calculating Tire\n");
+//
+//
+//	// ADJUSTING VALUES
+//	float Fz = tireLoad / 1000.f;
+//	float longSlipP = longSlip * 100.f;
+//	float camberDeg = 90.f - std::acos(camber) * (180.f / PxPi);
+//	//float camberDeg = camber * (180.f / PxPi);
+//	float latSlipDeg = -latSlip * (180.f / PxPi);
+//
+//	// Getting the lateral slip in degrees, not in radians
+//	csvLinesLat[numWheel].append(std::to_string(latSlipDeg) + ",");
+//	csvLinesAlg[numWheel].append(std::to_string(latSlipDeg) + ",");
+//
+//	// LONG FORCE CALC
+//	float C = b0;
+//
+//
+//
+//	float D = (b1 * Fz * Fz + b2 * Fz);
+//
+//
+//	float BCD = (b3 * Fz * Fz + b4 * Fz) * std::exp(-b5 * Fz);
+//	float B = BCD / (C * D);
+//
+//	float H = b9 * Fz + b10;
+//	float V = 0.0f;
+//	float x1 = longSlipP + H;
+//	float E = (b6 * Fz * Fz + b7 * Fz + b8);
+//
+//	float Fx = tireFriction * (D * std::sin(C * std::atan(B * x1 - E * (B * x1 - std::atan(B * x1))))) + V;
+//
+//
+//	// LAT FORCE CALC
+//	C = a0;
+//	D = (a1 * Fz * Fz + a2 * Fz);
+//	BCD = a3 * std::sin(std::atan(Fz / a4) * 2.0) * (1.0 - a5 * std::abs(camberDeg));
+//	B = BCD / (C * D);
+//	H = a9 * Fz + a10 + a8 * camberDeg;
+//	V = a11 * Fz * camberDeg + a12 * Fz + a13;
+//	x1 = latSlipDeg + H;
+//	E = a6 * Fz + a7;
+//
+//	PxClamp(x1, (float)-89.5, (float)89.5);
+//	float Fy = tireFriction * D * std::sin(C * std::atan(B * x1 - E * (B * x1 - std::atan(B * x1)))) + V;
+//
+//
+//	// ALIGN MOMENT CALCULATION
+//	C = c0;
+//	D = c1 * Fz * Fz + c2 * Fz;
+//	BCD = (c3 * Fz * Fz + c4 * Fz) * (1 - c6 * std::abs(camberDeg)) * std::exp(-c5 * Fz);
+//	B = BCD / (C * D);
+//	H = c11 * camberDeg + c12 * Fz + c13;
+//	V = (c14 * Fz * Fz + c15 * Fz) * camberDeg + c16 * Fz + c17;
+//	x1 = (latSlipDeg + H);
+//	E = (c7 * Fz * Fz + c8 * Fz + c9) * (1 - c10 * std::abs(camberDeg));
+//
+//	float Mz = tireFriction * D * std::sin(C * std::atan(B * x1 - E * (B * x1 - std::atan(B * x1)))) + V;
+//
+//	//float deflection = Fy / 261065.0;
+//
+//	//float Mx = -(Fz * 1000) * deflection;
+//	//Mz = Mz + Fx * deflection;
+//
+//	//float My = 0.01 * Fz * wheelRadius;
+//
+//	// Set the output variables
+//	wheelTorque = 0.f;        // Magic Formula doesn't directly compute wheel torque
+//	tireLongForceMag = Fx;
+//	tireLatForceMag = Fy;
+//	tireAlignMoment = Mz;
+//
+//
+//	csvLinesLong[numWheel].append(std::to_string(tireLongForceMag) + "\n");
+//	csvLinesLat[numWheel].append(std::to_string(tireLatForceMag) + "\n");
+//	csvLinesAlg[numWheel].append(std::to_string(tireAlignMoment) + "\n");
+//
+//	
+//	numWheel++;
+//	numStepCount++;
+//
+//	if (numWheel > 3)
+//		numWheel = 0;
+//
+//}
 
 VehicleDesc initVehicleDesc()
 {
@@ -634,8 +642,11 @@ void initPhysics()
 	gScene->addActor(*gVehicleNoDrive->getRigidDynamicActor());
 
 
-	//gVehicleNoDrive->mWheelsDynData.setTireForceShaderFunction(&tireModelMagicFormula);
-	gVehicleNoDrive->mWheelsDynData.setTireForceShaderFunction(&TireForceDefault);
+	magicFormulaTireModel = make_shared<MagicFormulaTireModel>();
+	defaultTireModel = make_shared<DefaultTireModel>();
+	//gVehicleNoDrive->mWheelsDynData.setTireForceShaderFunction(&TireForceDefault);
+	gVehicleNoDrive->mWheelsDynData.setTireForceShaderFunction(&defaultTireModel->Function);
+	//gVehicleNoDrive->mWheelsDynData.setTireForceShaderFunction(&magicFormulaTireModel->Function);
 
 	for (int i = 0; i < 4; i++)
 	{
@@ -756,6 +767,7 @@ void stepPhysics()
 	gScene->simulate(timestep);
 	gScene->fetchResults(true);
 
+	
 	numStepCount = 0;
 	//printf("Finishing step\n\n");
 }
@@ -785,11 +797,11 @@ void cleanupPhysics()
 	}
 
 	gFoundation->release();
+	system("Rscript C:/Users/giana/Documents/HonsProjectScript.R");
 	printf("SnippetVehicleNoDrive done.\n");
 
-
 	// WRITING TO CSV
-	for (int i = 0; i < 4; i++)
+	/*for (int i = 0; i < 4; i++)
 	{
 		std::string filenameLong = "dataWheelLong" + std::to_string(i);
 		std::string filenameLat = "dataWheelLat" + std::to_string(i);
@@ -823,7 +835,7 @@ void cleanupPhysics()
 		outputFileLong.close();
 		outputFileLat.close();
 		outputFileAlg.close();
-	}
+	}*/
 
 }
 

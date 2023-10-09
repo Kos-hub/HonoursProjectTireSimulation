@@ -127,6 +127,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CsvHelper.cpp" />
+    <ClCompile Include="DefaultTireModel.cpp" />
+    <ClCompile Include="MagicFormulaTireModel.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="VehicleCreate.cpp" />
     <ClCompile Include="VehicleFilterShader.cpp" />
@@ -134,6 +137,10 @@
     <ClCompile Include="VehicleTireFriction.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CsvHelper.h" />
+    <ClInclude Include="DefaultTireModel.h" />
+    <ClInclude Include="MagicFormulaTireModel.h" />
+    <ClInclude Include="TireModelHandler.h" />
     <ClInclude Include="VehicleCreate.h" />
     <ClInclude Include="VehicleFilterShader.h" />
     <ClInclude Include="VehicleSceneQuery.h" />

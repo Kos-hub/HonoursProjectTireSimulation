@@ -432,6 +432,7 @@ FodyWeavers.xsd
 *.sln.iml
 
 *.csv
+*.pdf
 ### VisualStudio Patch ###
 # Additional files built by Visual Studio
 
