@@ -93,6 +93,8 @@ void DefaultTireModel::Function(const void* shaderData, const PxF32 tireFriction
 	tireLatForceMag = fx;
 	tireAlignMoment = fMy;
 
+	_csvHelper->StoreValues(_numWheel, std::to_string(longSlip), std::to_string(latSlip * (180/PxPi)), std::to_string(tireLongForceMag), std::to_string(tireLatForceMag), std::to_string(tireAlignMoment));
+
 	_numWheel++;
 	if (_numWheel > 3)
 		_numWheel = 0;

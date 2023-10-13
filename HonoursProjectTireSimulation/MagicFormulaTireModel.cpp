@@ -7,26 +7,26 @@ CsvHelper* MagicFormulaTireModel::_csvHelper = new CsvHelper("MagicFormula");
 
 MagicFormulaTireModel::MagicFormulaTireModel()
 {
-	_constants.b0 = 1.5;
-	_constants.b1 = 0.0;
-	_constants.b2 = 1100;
-	_constants.b3 = 0;
-	_constants.b4 = 300;
-	_constants.b5 = 0;
-	_constants.b6 = 0;
-	_constants.b7 = 0;
-	_constants.b8 = -2;
-	_constants.b9 = 0.0;
-	_constants.b10 = 0.0;
+	_constants.b0 = 1.50018802672136;
+	_constants.b1 = 0.0f;
+	_constants.b2 = 1100.f;
+	_constants.b3 = 0.0f;
+	_constants.b4 = 300.0f;
+	_constants.b5 = 0.0f;
+	_constants.b6 = 0.0f;
+	_constants.b7 = 0.0f;
+	_constants.b8 = -2.f;
+	_constants.b9 = 0.0f;
+	_constants.b10 = 0.0f;
 
-	_constants.a0 = 1.4;
-	_constants.a1 = 0;
-	_constants.a2 = 1100;
-	_constants.a3 = 1100;
-	_constants.a4 = 10;
-	_constants.a5 = 0.0;
-	_constants.a6 = 0;
-	_constants.a7 = -2;
+	_constants.a0 = 1.49975356208205;
+	_constants.a1 = 0.f;
+	_constants.a2 = 1100.f;
+	_constants.a3 = 1100.f;
+	_constants.a4 = 10.f;
+	_constants.a5 = 0.0f;
+	_constants.a6 = 0.0f;
+	_constants.a7 = -2.f;
 	_constants.a8 = 0.0f;
 	_constants.a9 = 0.0f;
 	_constants.a10 = 0.0f;

@@ -9,11 +9,11 @@ using namespace physx;
 class DefaultTireModel
 {
 private:
-	static CsvHelper* _csvHelper;
+	
 
 public:
 	DefaultTireModel();
-
+	static CsvHelper* _csvHelper;
 	typedef void (*PxVehicleComputeTireForce)
 		(const void* shaderData,
 			const PxF32 tireFriction,

@@ -57,7 +57,6 @@ struct MagicFormulaConstants
 class MagicFormulaTireModel
 {
 private:
-	static CsvHelper* _csvHelper;
 	// MAGIC FORMULA CONSTANTS
 	//const float b0 = 1.50018802672136;
 	//const float b1 = -15.7761466722458;
@@ -106,7 +105,52 @@ private:
 	//const float c17 =  0.0f;
 
 
+	//_constants.b0 = 1.5;
+	//_constants.b1 = 0.0;
+	//_constants.b2 = 1100;
+	//_constants.b3 = 0;
+	//_constants.b4 = 300;
+	//_constants.b5 = 0;
+	//_constants.b6 = 0;
+	//_constants.b7 = 0;
+	//_constants.b8 = -2;
+	//_constants.b9 = 0.0;
+	//_constants.b10 = 0.0;
 
+	//_constants.a0 = 1.4;
+	//_constants.a1 = 0;
+	//_constants.a2 = 1100;
+	//_constants.a3 = 1100;
+	//_constants.a4 = 10;
+	//_constants.a5 = 0.0;
+	//_constants.a6 = 0;
+	//_constants.a7 = -2;
+	//_constants.a8 = 0.0f;
+	//_constants.a9 = 0.0f;
+	//_constants.a10 = 0.0f;
+	//_constants.a11 = 0.0f;
+	//_constants.a12 = 0.0f;
+	//_constants.a13 = 0.0f;
+
+	//_constants.c0 = 2.34000;
+	//_constants.c1 = 0.990427;
+	//_constants.c2 = 2.9684;
+	//_constants.c3 = -0.277098;
+	//_constants.c4 = -0.944859;
+	//_constants.c5 = 0.0;
+	//_constants.c6 = 0.0027699;
+	//_constants.c7 = -0.0001151;
+	//_constants.c8 = 0.10;
+	//_constants.c9 = -1.3329;
+	//_constants.c10 = 0.0f;
+	//_constants.c11 = 0.0f;
+	//_constants.c12 = 0.0f;
+	//_constants.c13 = 0.0f;
+	//_constants.c14 = 0.0f;
+	//_constants.c15 = 0.0f;
+	//_constants.c16 = 0.0f;
+	//_constants.c17 = 0.0f;
+	// 
 	//const float b0 = 1.50018802672136;
 	//const float b1 =  0.0f;
 	//const float b2 = 1100.f;
@@ -118,7 +162,7 @@ private:
 	//const float b8 = -2;
 	//const float b9 = 0.0;
 	//const float b10 = 0.0;
-	//
+
 	//const float a0 = 1.49975356208205;
 	//const float a1 = 0.f;
 	//const float a2 = 1100;
@@ -163,6 +207,8 @@ private:
 
 
 public:
+	static CsvHelper* _csvHelper;
+
 	MagicFormulaTireModel();
 	
 	typedef void (*PxVehicleComputeTireForce)
