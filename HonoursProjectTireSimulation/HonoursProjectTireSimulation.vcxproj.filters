@@ -39,6 +39,12 @@
     <ClCompile Include="DefaultTireModel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="DugoffModel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="FialaTireModel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="VehicleCreate.h">
@@ -63,6 +69,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="DefaultTireModel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DugoffModel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FialaTireModel.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

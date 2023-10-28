@@ -58,59 +58,62 @@ void CsvHelper::WriteCSV()
 
 void CsvHelper::FlushTemp()
 {
-	if (!_tempCsvLinesLong[0].empty())
+	for (int i = 0; i < _tempCsvLinesLong.size(); i++)
 	{
-		for (int i = 0; i < _tempCsvLinesLong.size(); i++)
+		if (_tempCsvLinesLong[i].empty())
+			return;
+	}
+
+	for (int i = 0; i < _tempCsvLinesLong.size(); i++)
+	{
+		stringstream ss(_tempCsvLinesLong[i]);
+		vector<string> tokens;
+		string temp;
+
+		while (getline(ss, temp, '\n'))
 		{
-			stringstream ss(_tempCsvLinesLong[i]);
-			vector<string> tokens;
-			string temp;
+			tokens.push_back(temp);
+		}
 
-			while (getline(ss, temp, '\n'))
-			{
-				tokens.push_back(temp);
-			}
-
-			_csvLinesLong[i].append(tokens[tokens.size() - 1] + "\n");
+		_csvLinesLong[i].append(tokens[tokens.size() - 1] + "\n");
 			
-		}
+	}
 
-		for (int i = 0; i < _tempCsvLinesLat.size(); i++)
+	for (int i = 0; i < _tempCsvLinesLat.size(); i++)
+	{
+		stringstream ss(_tempCsvLinesLat[i]);
+		vector<string> tokens;
+		string temp;
+
+		while (getline(ss, temp, '\n'))
 		{
-			stringstream ss(_tempCsvLinesLat[i]);
-			vector<string> tokens;
-			string temp;
-
-			while (getline(ss, temp, '\n'))
-			{
-				tokens.push_back(temp);
-			}
-
-			_csvLinesLat[i].append(tokens[tokens.size() - 1] + "\n");
-
+			tokens.push_back(temp);
 		}
 
-		for (int i = 0; i < _tempCsvLinesAlg.size(); i++)
+		_csvLinesLat[i].append(tokens[tokens.size() - 1] + "\n");
+
+	}
+
+	for (int i = 0; i < _tempCsvLinesAlg.size(); i++)
+	{
+		stringstream ss(_tempCsvLinesAlg[i]);
+		vector<string> tokens;
+		string temp;
+
+		while (getline(ss, temp, '\n'))
 		{
-			stringstream ss(_tempCsvLinesAlg[i]);
-			vector<string> tokens;
-			string temp;
-
-			while (getline(ss, temp, '\n'))
-			{
-				tokens.push_back(temp);
-			}
-
-			_csvLinesAlg[i].append(tokens[tokens.size() - 1] + "\n");
-
+			tokens.push_back(temp);
 		}
 
-		for (int i = 0; i < 4; i++)
-		{
-			_tempCsvLinesLong[i].clear();
-			_tempCsvLinesLat[i].clear();
-			_tempCsvLinesAlg[i].clear();
-		}
+		_csvLinesAlg[i].append(tokens[tokens.size() - 1] + "\n");
+
+	}
+
+	for (int i = 0; i < 4; i++)
+	{
+		_tempCsvLinesLong[i].clear();
+		_tempCsvLinesLat[i].clear();
+		_tempCsvLinesAlg[i].clear();
 	}
 
 	

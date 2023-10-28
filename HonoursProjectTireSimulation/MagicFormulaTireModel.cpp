@@ -5,6 +5,9 @@ static MagicFormulaConstants _constants;
 static int _numWheel;
 CsvHelper* MagicFormulaTireModel::_csvHelper = new CsvHelper("MagicFormula");
 
+
+
+std::string relation;
 MagicFormulaTireModel::MagicFormulaTireModel()
 {
 	_constants.b0 = 1.50018802672136;
@@ -144,14 +147,17 @@ void MagicFormulaTireModel::Function(const void* shaderData, const PxF32 tireFri
 	tireAlignMoment = Mz;
 
 
+	//if (longSlip > -0.97 && _numWheel == 2)
+	//{
+	//	std::cout << "Long force is : " << tireLongForceMag << " when slip > -0.97 and load = " << tireLoad << std::endl;
+	//}
+
 	//csvLinesLong[numWheel].append(std::to_string(tireLongForceMag) + "\n");
 	//csvLinesLat[numWheel].append(std::to_string(tireLatForceMag) + "\n");
 	//csvLinesAlg[numWheel].append(std::to_string(tireAlignMoment) + "\n");
 
-
 	_csvHelper->StoreValues(_numWheel, std::to_string(longSlip), std::to_string(latSlipDeg), std::to_string(tireLongForceMag), std::to_string(tireLatForceMag), std::to_string(tireAlignMoment));
 	_numWheel++;
-	//numStepCount++;
 
 	if (_numWheel > 3)
 		_numWheel = 0;

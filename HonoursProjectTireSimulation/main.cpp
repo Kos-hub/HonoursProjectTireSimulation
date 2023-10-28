@@ -6,15 +6,16 @@
 #include "VehicleTireFriction.h"
 #include "MagicFormulaTireModel.h"
 #include "DefaultTireModel.h"
+#include "DugoffModel.h"
+#include "FialaTireModel.h"
 #include <stdio.h>
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <vector>
 #include <functional>
+#include <chrono>
 
-// TODO: Instead of writing to a string each time the wheel function is called, what I can simply do is save at the end of the step.
-// Therefore, I'd have to store long slip, lat slip and all the forces in temp values that will then be passed to a csv string.
 
 
 using namespace physx;
@@ -41,11 +42,16 @@ PxBatchQuery* gBatchQuery = NULL;
 PxVehicleDrivableSurfaceToTireFrictionPairs* gFrictionPairs = NULL;
 
 PxRigidStatic* gGroundPlane = NULL;
+
 PxVehicleNoDrive* gVehicleNoDriveMagic = NULL;
 PxVehicleNoDrive* gVehicleNoDriveDefault = NULL;
+PxVehicleNoDrive* gVehicleNoDriveDugoff = NULL;
+PxVehicleNoDrive* gVehicleNoDriveFiala = NULL;
 
 MagicFormulaTireModel* magicFormulaTireModel;
 DefaultTireModel* defaultTireModel;
+DugoffTireModel* dugoffTireModel;
+FialaTireModel* fialaTireModel;
 
 enum DriveMode
 {
@@ -137,18 +143,26 @@ void startAccelerateForwardsMode()
 {
 	gVehicleNoDriveMagic->setDriveTorque(0, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(0, 1000.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(1, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(1, 1000.0f);
 }
 
 void startAccelerateReverseMode()
 {
 	gVehicleNoDriveMagic->setDriveTorque(0, -1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(0, -1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(0, -1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(0, -1000.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(1, -1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(1, -1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(1, -1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(1, -1000.0f);
 
 }
 
@@ -156,127 +170,199 @@ void startBrakeMode()
 {
 	gVehicleNoDriveMagic->setBrakeTorque(0, 1000.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(0, 1000.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(0, 1000.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(0, 1000.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(1, 1000.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(1, 1000.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(1, 1000.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(1, 1000.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(2, 1000.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(2, 1000.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(2, 1000.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(2, 1000.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(3, 1000.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(3, 1000.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(3, 1000.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(3, 1000.0f);
 }
 
 void startTurnHardLeftMode()
 {
 	gVehicleNoDriveMagic->setDriveTorque(0, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(0, 1000.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(1, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(1, 1000.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(0, 1.0f);
 	gVehicleNoDriveDefault->setSteerAngle(0, 1.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(0, 1.0f);
+	gVehicleNoDriveFiala->setSteerAngle(0, 1.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(1, 1.0f);
 	gVehicleNoDriveDefault->setSteerAngle(1, 1.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(1, 1.0f);
+	gVehicleNoDriveFiala->setSteerAngle(1, 1.0f);
 }
 
 void startTurnHardRightMode()
 {
 	gVehicleNoDriveMagic->setDriveTorque(0, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(0, 1000.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(1, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(1, 1000.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(0, -1.0f);
 	gVehicleNoDriveDefault->setSteerAngle(0, -1.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(0, -1.0f);
+	gVehicleNoDriveFiala->setSteerAngle(0, -1.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(1, -1.0f);
 	gVehicleNoDriveDefault->setSteerAngle(1, -1.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(1, -1.0f);
+	gVehicleNoDriveFiala->setSteerAngle(1, -1.0f);
 }
 
 void startHandbrakeTurnLeftMode()
 {
 	gVehicleNoDriveMagic->setBrakeTorque(2, 1000.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(2, 1000.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(2, 1000.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(2, 1000.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(3, 1000.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(3, 1000.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(3, 1000.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(3, 1000.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(0, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(0, 1000.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(1, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(1, 1000.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(0, 1.0f);
 	gVehicleNoDriveDefault->setSteerAngle(0, 1.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(0, 1.0f);
+	gVehicleNoDriveFiala->setSteerAngle(0, 1.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(1, 1.0f);
 	gVehicleNoDriveDefault->setSteerAngle(1, 1.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(1, 1.0f);
+	gVehicleNoDriveFiala->setSteerAngle(1, 1.0f);
 }
 
 void startHandbrakeTurnRightMode()
 {
 	gVehicleNoDriveMagic->setBrakeTorque(2, 1000.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(2, 1000.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(2, 1000.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(2, 1000.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(3, 1000.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(3, 1000.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(3, 1000.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(3, 1000.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(0, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(0, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(0, 1000.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(1, 1000.0f);
 	gVehicleNoDriveDefault->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(1, 1000.0f);
+	gVehicleNoDriveFiala->setDriveTorque(1, 1000.0f);
 	
 	gVehicleNoDriveMagic->setSteerAngle(0, -1.0f);
 	gVehicleNoDriveDefault->setSteerAngle(0, -1.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(0, -1.0f);
+	gVehicleNoDriveFiala->setSteerAngle(0, -1.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(1, -1.0f);
 	gVehicleNoDriveDefault->setSteerAngle(1, -1.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(1, -1.0f);
+	gVehicleNoDriveFiala->setSteerAngle(1, -1.0f);
 }
 
 void releaseAllControls()
 {
 	gVehicleNoDriveMagic->setDriveTorque(0, 0.0f);
 	gVehicleNoDriveDefault->setDriveTorque(0, 0.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(0, 0.0f);
+	gVehicleNoDriveFiala->setDriveTorque(0, 0.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(1, 0.0f);
 	gVehicleNoDriveDefault->setDriveTorque(1, 0.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(1, 0.0f);
+	gVehicleNoDriveFiala->setDriveTorque(1, 0.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(2, 0.0f);
 	gVehicleNoDriveDefault->setDriveTorque(2, 0.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(2, 0.0f);
+	gVehicleNoDriveFiala->setDriveTorque(2, 0.0f);
 
 	gVehicleNoDriveMagic->setDriveTorque(3, 0.0f);
 	gVehicleNoDriveDefault->setDriveTorque(3, 0.0f);
+	gVehicleNoDriveDugoff->setDriveTorque(3, 0.0f);
+	gVehicleNoDriveFiala->setDriveTorque(3, 0.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(0, 0.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(0, 0.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(0, 0.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(0, 0.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(1, 0.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(1, 0.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(1, 0.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(1, 0.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(2, 0.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(2, 0.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(2, 0.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(2, 0.0f);
 
 	gVehicleNoDriveMagic->setBrakeTorque(3, 0.0f);
 	gVehicleNoDriveDefault->setBrakeTorque(3, 0.0f);
+	gVehicleNoDriveDugoff->setBrakeTorque(3, 0.0f);
+	gVehicleNoDriveFiala->setBrakeTorque(3, 0.0f);
 
 
 	gVehicleNoDriveMagic->setSteerAngle(0, 0.0f);
 	gVehicleNoDriveDefault->setSteerAngle(0, 0.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(0, 0.0f);
+	gVehicleNoDriveFiala->setSteerAngle(0, 0.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(1, 0.0f);
 	gVehicleNoDriveDefault->setSteerAngle(1, 0.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(1, 0.0f);
+	gVehicleNoDriveFiala->setSteerAngle(1, 0.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(2, 0.0f);
 	gVehicleNoDriveDefault->setSteerAngle(2, 0.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(2, 0.0f);
+	gVehicleNoDriveFiala->setSteerAngle(2, 0.0f);
 
 	gVehicleNoDriveMagic->setSteerAngle(3, 0.0f);
 	gVehicleNoDriveDefault->setSteerAngle(3, 0.0f);
+	gVehicleNoDriveDugoff->setSteerAngle(3, 0.0f);
+	gVehicleNoDriveFiala->setSteerAngle(3, 0.0f);
 }
 
 void initPhysics()
@@ -337,28 +423,45 @@ void initPhysics()
 
 	gVehicleNoDriveMagic = createVehicleNoDrive(vehicleDesc, gPhysics, gCooking);
 	gVehicleNoDriveDefault = createVehicleNoDrive(vehicleDesc, gPhysics, gCooking);
+	gVehicleNoDriveDugoff = createVehicleNoDrive(vehicleDesc, gPhysics, gCooking);
+	gVehicleNoDriveFiala = createVehicleNoDrive(vehicleDesc, gPhysics, gCooking);
 
 	PxTransform startTransformMagic(PxVec3(0, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
 	PxTransform startTransformDefault(PxVec3(15.f, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
+	PxTransform startTransformDugoff(PxVec3(30.f, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
+	PxTransform startTransformFiala(PxVec3(45.f, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
 
 	gVehicleNoDriveMagic->getRigidDynamicActor()->setGlobalPose(startTransformMagic);
 	gVehicleNoDriveDefault->getRigidDynamicActor()->setGlobalPose(startTransformDefault);
+	gVehicleNoDriveDugoff->getRigidDynamicActor()->setGlobalPose(startTransformDugoff);
+	gVehicleNoDriveFiala->getRigidDynamicActor()->setGlobalPose(startTransformFiala);
 
 	gScene->addActor(*gVehicleNoDriveMagic->getRigidDynamicActor());
 	gScene->addActor(*gVehicleNoDriveDefault->getRigidDynamicActor());
+	gScene->addActor(*gVehicleNoDriveDugoff->getRigidDynamicActor());
+	gScene->addActor(*gVehicleNoDriveFiala->getRigidDynamicActor());
 
 
 	magicFormulaTireModel = new MagicFormulaTireModel();
 	defaultTireModel = new DefaultTireModel();
+	dugoffTireModel = new DugoffTireModel();
+	fialaTireModel = new FialaTireModel();
 
 	gVehicleNoDriveDefault->mWheelsDynData.setTireForceShaderFunction(&defaultTireModel->Function);
 	gVehicleNoDriveMagic->mWheelsDynData.setTireForceShaderFunction(&magicFormulaTireModel->Function);
+	gVehicleNoDriveDugoff->mWheelsDynData.setTireForceShaderFunction(&dugoffTireModel->Function);
+	gVehicleNoDriveFiala->mWheelsDynData.setTireForceShaderFunction(&fialaTireModel->Function);
 
 
+	//gVehicleNoDriveMagic->mWheelsSimData.setSubStepCount(1.f, 1, 10.f);
+	//gVehicleNoDriveDefault->mWheelsSimData.setSubStepCount(1.f, 1, 10.f);
+		
 	//Set the vehicle to rest in first gear.
 	//Set the vehicle to use auto-gears.
 	gVehicleNoDriveMagic->setToRestState();
 	gVehicleNoDriveDefault->setToRestState();
+	gVehicleNoDriveDugoff->setToRestState();
+	gVehicleNoDriveFiala->setToRestState();
 
 
 	gVehicleModeTimer = 0.0f;
@@ -418,35 +521,43 @@ void stepPhysics()
 {
 
 	//printf("Init step\n");
-
-	const PxF32 timestep = 1.0f / 144.0f;
+	const PxF32 timestep = 1.0f / 60.f;
 
 	//Cycle through the driving modes to demonstrate how to accelerate/reverse/brake/turn etc.
 	incrementDrivingMode(timestep);
 
 	//Raycasts.
-	PxVehicleWheels* vehicles[2] = { gVehicleNoDriveMagic, gVehicleNoDriveDefault };
+	PxVehicleWheels* vehicles[4] = { gVehicleNoDriveMagic, gVehicleNoDriveDefault, gVehicleNoDriveDugoff, gVehicleNoDriveFiala };
 	PxRaycastQueryResult* raycastResults = gVehicleSceneQueryData->getRaycastQueryResultBuffer(0);
 	const PxU32 raycastResultsSize = gVehicleSceneQueryData->getQueryResultBufferSize();
-	PxVehicleSuspensionRaycasts(gBatchQuery, 2, vehicles, raycastResultsSize, raycastResults);
+	PxVehicleSuspensionRaycasts(gBatchQuery, 4, vehicles, raycastResultsSize, raycastResults);
 
 	//Vehicle update.
 	const PxVec3 grav = gScene->getGravity();
 	PxWheelQueryResult wheelQueryResultsMagic[PX_MAX_NB_WHEELS];
 	PxWheelQueryResult wheelQueryResultsDefault[PX_MAX_NB_WHEELS];
-	PxVehicleWheelQueryResult vehicleQueryResults[2] = { 
-		{wheelQueryResultsMagic, gVehicleNoDriveMagic->mWheelsSimData.getNbWheels()}, 
-		{wheelQueryResultsDefault, gVehicleNoDriveDefault->mWheelsSimData.getNbWheels()} 
-	};
-	PxVehicleUpdates(timestep, grav, *gFrictionPairs, 2, vehicles, vehicleQueryResults);
+	PxWheelQueryResult wheelQueryResultsDugoff[PX_MAX_NB_WHEELS];
+	PxWheelQueryResult wheelQueryResultsFiala[PX_MAX_NB_WHEELS];
 
-	
+	PxVehicleWheelQueryResult vehicleQueryResults[4] = { 
+		{wheelQueryResultsMagic, gVehicleNoDriveMagic->mWheelsSimData.getNbWheels()}, 
+		{wheelQueryResultsDefault, gVehicleNoDriveDefault->mWheelsSimData.getNbWheels()}, 
+		{wheelQueryResultsDugoff, gVehicleNoDriveDugoff->mWheelsSimData.getNbWheels()},
+		{wheelQueryResultsFiala, gVehicleNoDriveFiala->mWheelsSimData.getNbWheels()}
+	};
+	PxVehicleUpdates(timestep, grav, *gFrictionPairs, 4, vehicles, vehicleQueryResults);
+
+
+
+	//std::cout << "Magic Speed " << gVehicleNoDriveMagic->computeForwardSpeed() << std::endl;
+	//std::cout << "Default Speed " << gVehicleNoDriveDefault->computeForwardSpeed() << std::endl;
 	//Scene update
 	gScene->simulate(timestep);
 	gScene->fetchResults(true);
-
 	magicFormulaTireModel->_csvHelper->FlushTemp();
 	defaultTireModel->_csvHelper->FlushTemp();
+	dugoffTireModel->_csvHelper->FlushTemp();
+	fialaTireModel->_csvHelper->FlushTemp();
 
 	//printf("Finishing step\n\n");
 }
@@ -459,6 +570,13 @@ void cleanupPhysics()
 
 	gVehicleNoDriveDefault->getRigidDynamicActor()->release();
 	gVehicleNoDriveDefault->free();
+
+	gVehicleNoDriveDugoff->getRigidDynamicActor()->release();
+	gVehicleNoDriveDugoff->free();
+
+	gVehicleNoDriveFiala->getRigidDynamicActor()->release();
+	gVehicleNoDriveFiala->free();
+
 	gGroundPlane->release();
 	gBatchQuery->release();
 	gVehicleSceneQueryData->free(gAllocator);
@@ -479,12 +597,15 @@ void cleanupPhysics()
 	}
 
 	gFoundation->release();
+
 	delete magicFormulaTireModel;
 	delete defaultTireModel;
+	delete dugoffTireModel;
+	delete fialaTireModel;
 
-	system("Rscript C:/Users/giana/Documents/HonsProjectScript.R");
+	std::system("Rscript C:/Users/giana/Documents/HonsProjectScript.R");
 
-	printf("SnippetVehicleNoDrive done.\n");
+	std::printf("SnippetVehicleNoDrive done.\n");
 
 }
 
@@ -494,10 +615,14 @@ void keyPress(unsigned char key, const PxTransform& camera)
 	PX_UNUSED(key);
 }
 
+
+
 int main()
 {
 	initPhysics();
 
+
+
 	while (!gVehicleOrderComplete)
 	{
 		stepPhysics();
@@ -506,20 +631,23 @@ int main()
 	cleanupPhysics();
 	return 0;
 }
-int snippetMain(int, const char* const*)
-{
-#ifdef RENDER_SNIPPET
-	extern void renderLoop();
-	renderLoop();
-#else
-	initPhysics();
-	while (!gVehicleOrderComplete)
-	{
-		stepPhysics();
-	}
-	cleanupPhysics();
-#endif
 
 
-	return 0;
-}
+
+//int snippetMain(int, const char* const*)
+//{
+//#ifdef RENDER_SNIPPET
+//	extern void renderLoop();
+//	renderLoop();
+//#else
+//	initPhysics();
+//	while (!gVehicleOrderComplete)
+//	{
+//		stepPhysics();
+//	}
+//	cleanupPhysics();
+//#endif
+//
+//
+//	return 0;
+//}
