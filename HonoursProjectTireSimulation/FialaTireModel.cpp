@@ -8,8 +8,9 @@ FialaTireModel::FialaTireModel()
 {
 }
 
-void FialaTireModel::Function(const void* shaderData, const PxF32 tireFriction, const PxF32 longSlip, const PxF32 latSlip, const PxF32 camber, const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius, const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 tireLoad, const PxF32 gravity, const PxF32 recipGravity, PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
+void FialaTireModel::Function(const void* shaderData, const PxF32 tireFriction, const PxF32 longSlip, const PxF32 latSlip, const PxF32 camber, const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius, const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 ftireLoad, const PxF32 gravity, const PxF32 recipGravity, PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
 {
+	float tireLoad = ftireLoad;
 	// Casting tire data to get the stiffness values
 	const PxVehicleTireData& tireData = *reinterpret_cast<const PxVehicleTireData*>(shaderData);
 
@@ -56,10 +57,10 @@ void FialaTireModel::Function(const void* shaderData, const PxF32 tireFriction, 
 
 	if (std::abs(latSlip) <= latCrit)
 	{
-		float h = 1 - latStiff * std::abs(std::tan(latSlip) / (3 * tireFriction * tireLoad));
+		float h = 1 - (latStiff * std::abs(std::tan(latSlip)) / (3 * tireFriction * std::abs(tireLoad)));
 
-		fy = -tireFriction * tireLoad * (1 - std::pow(h, 3)) * PxSign(latSlip);
-		mz = tireFriction * tireLoad * (1 - h) * std::pow(h, 3) * PxSign(latSlip);
+		fy = -tireFriction * std::abs(tireLoad) * (1 - std::pow(h, 3)) * PxSign(latSlip);
+		mz = tireFriction * std::abs(tireLoad) * 0.4 * (1 - h) * std::pow(h, 3) * PxSign(latSlip);
 	}
 	else
 	{
@@ -74,7 +75,7 @@ void FialaTireModel::Function(const void* shaderData, const PxF32 tireFriction, 
 	tireAlignMoment = mz;
 	wheelTorque= 0.f;
 
-	_csvHelper->StoreValues(_numWheel, std::to_string(longSlip), std::to_string(latSlip), std::to_string(tireLongForceMag), std::to_string(tireLatForceMag), std::to_string(tireAlignMoment));
+	_csvHelper->StoreValues(_numWheel, std::to_string(longSlip), std::to_string(latSlip * 180.f / PxPi), std::to_string(tireLongForceMag), std::to_string(-tireLatForceMag), std::to_string(-tireAlignMoment));
 	_numWheel++;
 
 	if (_numWheel > 3)

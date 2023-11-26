@@ -57,9 +57,10 @@ MagicFormulaTireModel::MagicFormulaTireModel()
 	_constants.c17 = 0.0f;
 }
 
-void MagicFormulaTireModel::Function(const void* shaderData, const PxF32 tireFriction, const PxF32 longSlip, const PxF32 latSlip, const PxF32 camber, const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius, const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 tireLoad, const PxF32 gravity, const PxF32 recipGravity, PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
+void MagicFormulaTireModel::Function(const void* shaderData, const PxF32 tireFriction, const PxF32 longSlip, const PxF32 latSlip, const PxF32 camber, const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius, const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 ftireLoad, const PxF32 gravity, const PxF32 recipGravity, PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
 {
 
+	float tireLoad = ftireLoad;
 	if ((0 == latSlip) && (0 == longSlip) && (0 == camber))
 	{
 		return;
@@ -80,7 +81,7 @@ void MagicFormulaTireModel::Function(const void* shaderData, const PxF32 tireFri
 	// ADJUSTING VALUES
 	float Fz = tireLoad / 1000.f;
 	float longSlipP = longSlip * 100.f;
-	float camberDeg = 90.f - std::acos(camber) * (180.f / PxPi);
+	float camberDeg = 90.f - std::acos(-camber) * (180.f / PxPi);
 	//float camberDeg = camber * (180.f / PxPi);
 	float latSlipDeg = -latSlip * (180.f / PxPi);
 

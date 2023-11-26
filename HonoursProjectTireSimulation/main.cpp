@@ -426,7 +426,7 @@ void initPhysics()
 	gVehicleNoDriveDugoff = createVehicleNoDrive(vehicleDesc, gPhysics, gCooking);
 	gVehicleNoDriveFiala = createVehicleNoDrive(vehicleDesc, gPhysics, gCooking);
 
-	PxTransform startTransformMagic(PxVec3(0, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
+	PxTransform startTransformMagic(PxVec3(0.f, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
 	PxTransform startTransformDefault(PxVec3(15.f, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
 	PxTransform startTransformDugoff(PxVec3(30.f, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));
 	PxTransform startTransformFiala(PxVec3(45.f, (vehicleDesc.chassisDims.y * 0.5f + vehicleDesc.wheelRadius + 1.0f), 0), PxQuat(PxIdentity));

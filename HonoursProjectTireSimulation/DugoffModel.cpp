@@ -10,11 +10,13 @@ DugoffTireModel::DugoffTireModel()
 {
 }
 
-void DugoffTireModel::Function(const void* shaderData, const PxF32 tireFriction, const PxF32 longSlipUnclamped, const PxF32 latSlip, const PxF32 camber, const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius, const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 tireLoad, const PxF32 gravity, const PxF32 recipGravity, PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
+void DugoffTireModel::Function(const void* shaderData, const PxF32 tireFriction, const PxF32 longSlipUnclamped, const PxF32 flatSlip, const PxF32 camber, const PxF32 wheelOmega, const PxF32 wheelRadius, const PxF32 recipWheelRadius, const PxF32 restTireLoad, const PxF32 normalisedTireLoad, const PxF32 utireLoad, const PxF32 gravity, const PxF32 recipGravity, PxF32& wheelTorque, PxF32& tireLongForceMag, PxF32& tireLatForceMag, PxF32& tireAlignMoment)
 {
+	float tireLoad = utireLoad;
+	//float tireFriction = 1.f;
+	float latSlip = -flatSlip;
 	// Casting tire data to get the stiffness values
 	const PxVehicleTireData& tireData = *reinterpret_cast<const PxVehicleTireData*>(shaderData);
-
 	// Calculating stiffness values
 	const PxF32 longStiff = tireData.mLongitudinalStiffnessPerUnitGravity * gravity;
 
@@ -44,12 +46,12 @@ void DugoffTireModel::Function(const void* shaderData, const PxF32 tireFriction,
 	//float longSlipP = longSlip * 100.f;
 
 	float zNum = (1 - longSlip) * tireFriction * tireLoad;
-	float root = (std::pow(longStiff * longSlip, 2)) + (std::pow(latStiff * std::tan(-latSlip), 2));
+	float root = (std::pow(longStiff * longSlip, 2)) + (std::pow(latStiff * std::tan(latSlip), 2));
 	float zDen = 2 * std::sqrt(root);
 	float z = zNum / zDen;
 
 	float gx = (1.15f - (0.75f * tireFriction)) * std::pow(longSlip, 2) - (1.63f - (0.75 * tireFriction)) * longSlip + 1.27f;
-	float gy = (tireFriction - 1.6) * std::tan(-latSlip) + 1.155f;
+	float gy = (tireFriction - 1.6) * std::tan(latSlip) + 1.155f;
 
 	float Kz = 0;
 	if (z < 1)
@@ -66,8 +68,8 @@ void DugoffTireModel::Function(const void* shaderData, const PxF32 tireFriction,
 
 
 
-	fx = longStiff * ((longSlip) / (1 - longSlip)) * Kz ;
-	fy = latStiff * ((std::tan(-latSlip) / (1 - longSlip))) * Kz;
+	fx = longStiff * ((longSlip) / (1 - longSlip)) * Kz;
+	fy = latStiff * ((std::tan(latSlip) / (1 - longSlip))) * Kz;
 
 	//std::cout << tireFriction << std::endl;
 	//if (longSlip > 0)
@@ -106,7 +108,7 @@ void DugoffTireModel::Function(const void* shaderData, const PxF32 tireFriction,
 	tireAlignMoment = 0.f;
 	wheelTorque = 0.f;
 
-	_csvHelper->StoreValues(_numWheel, std::to_string(longSlip), std::to_string(latSlip), std::to_string(tireLongForceMag), std::to_string(tireLatForceMag), std::to_string(tireAlignMoment));
+	_csvHelper->StoreValues(_numWheel, std::to_string(longSlip), std::to_string(latSlip * 180.f / PxPi), std::to_string(tireLongForceMag), std::to_string(tireLatForceMag), std::to_string(tireAlignMoment));
 	_numWheel++;
 
 	if (_numWheel > 3)
