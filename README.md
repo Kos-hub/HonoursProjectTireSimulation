@@ -1,7 +1,7 @@
 # Honours Project - Analysis of Tire Models using PhysX Engine
 This honours project is centered around the implementation of 3 different tire models: Magic Formula, Dugoff and Fiala.\
 The main purpose of this project is to analyse and compare these 3 models, along with NVIDIA's default tire model, to categorize them into different genres in the gaming world.
-
+![Poster](https://github.com/Kos-hub/HonoursProjectTireSimulation/blob/main/DissertationPoster_page-0001.jpg)
 ## Implementing the formulas
 Extensive research was conducted over the course of one year to better understand the nature of the mentioned tire models.
 Once the research was completed, I familiarised myself with PhysX and its VehicleSDK and created my first vehicle snippets. Some of NVIDIA's helper classes are also imported and used in this project. \
